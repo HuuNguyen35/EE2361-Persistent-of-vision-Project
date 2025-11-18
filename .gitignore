@@ -1,0 +1,11 @@
+# MPLAB X generated stuff
+EE2361_Library.X/build/
+EE2361_Library.X/dist/
+EE2361_Library.X/nbproject/private/
+
+# Compiled artifacts
+*.o
+*.d
+*.hex
+*.elf
+*.map
