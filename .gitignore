@@ -10,6 +10,8 @@ EE2361_Library.X/dist/
 EE2361_Library.X/nbproject/private/
 EE2361_Library.X/nbproject/*.mk
 EE2361_Library.X/nbproject/*.properties
+EE2361_Library.X/nbproject/Makefile-*.mk
+EE2361_Library.X/nbproject/*.properties
 
 
 # XC16 / PIC build junk
