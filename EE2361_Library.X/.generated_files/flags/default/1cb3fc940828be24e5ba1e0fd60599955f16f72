@@ -1,1 +1,0 @@
- -c -mcpu=$(MP_PROCESSOR_OPTION)  -omf=elf -DXPRJ_default=$(CND_CONF)    -Wa,-g,--no-relax$(MP_EXTRA_AS_POST)  -mdfp="${DFP_DIR}/xc16"C:\Projects\Vision2361\EE2361-Persistent-of-vision-Project\EE2361_Library.X\blommel_lab2b_asmLib_v1.s

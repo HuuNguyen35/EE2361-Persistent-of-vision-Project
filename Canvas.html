@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Circular Pixel Art Generator (POV Style)</title>
+  <style>
+    :root {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color-scheme: dark;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1f2937, #020617);
+      color: #e5e7eb;
+    }
+    .app {
+      background: rgba(17, 24, 39, 0.97);
+      border-radius: 18px;
+      padding: 18px 20px 20px;
+      box-shadow: 0 22px 45px rgba(0, 0, 0, 0.7);
+      max-width: 1000px;
+      width: 100%;
+      display: grid;
+      grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr);
+      gap: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+    }
+    @media (max-width: 900px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .subtitle {
+      font-size: 0.8rem;
+      color: #cbd5f5;
+      margin-bottom: 10px;
+    }
+    .canvas-container {
+      background: radial-gradient(circle at center, #020617, #020617 35%, #020617);
+      border-radius: 14px;
+      padding: 10px;
+      border: 1px solid rgba(156, 163, 175, 0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    canvas {
+      background: #020617;
+      border-radius: 50%;
+      max-width: 100%;
+      max-height: 100%;
+      touch-action: none; /* helps pointer events on touch */
+    }
+    .controls {
+      background: rgba(15, 23, 42, 0.96);
+      border-radius: 14px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      padding: 12px 12px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .section-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #9ca3af;
+      margin-bottom: 2px;
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 2px;
+    }
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .control-row label {
+      font-size: 0.85rem;
+      color: #e5e7eb;
+      white-space: nowrap;
+    }
+    input[type="number"],
+    select {
+      background: rgba(17, 24, 39, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      border-radius: 7px;
+      padding: 4px 7px;
+      color: #e5e7eb;
+      font-size: 0.85rem;
+      outline: none;
+      min-width: 0;
+    }
+    input[type="number"]:focus,
+    select:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+    }
+    input[type="color"] {
+      width: 42px;
+      height: 24px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.9);
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"] {
+      width: 100%;
+    }
+    button {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.8);
+      background: rgba(15, 23, 42, 0.95);
+      color: #e5e7eb;
+      font-size: 0.8rem;
+      padding: 5px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: background 0.12s ease, transform 0.06s ease, box-shadow 0.12s ease;
+    }
+    button:hover {
+      background: rgba(55, 65, 81, 0.95);
+      box-shadow: 0 0 0 1px rgba(129, 140, 248, 0.7);
+      transform: translateY(-0.5px);
+    }
+    button:active {
+      transform: translateY(0.5px);
+      box-shadow: none;
+    }
+    .button-secondary {
+      background: rgba(15, 23, 42, 0.85);
+    }
+    .toggle-button {
+      font-size: 0.78rem;
+      padding: 4px 9px;
+    }
+    .toggle-button.active {
+      background: rgba(59, 130, 246, 0.95);
+      border-color: rgba(129, 140, 248, 1);
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.9);
+    }
+    .status-line {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      align-items: center;
+      margin-top: 4px;
+    }
+    .status-strong {
+      color: #e5e7eb;
+      font-variant-numeric: tabular-nums;
+    }
+    .hint {
+      font-size: 0.75rem;
+      color: #9ca3af;
+      line-height: 1.3;
+    }
+    .pill {
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+      padding: 3px 7px;
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+    }
+    .buttons-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 2px;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div>
+      <h1>Circular Pixel Art Generator</h1>
+      <div class="subtitle">
+        Polar-grid “LEDs” for POV-style blades. Click or drag to paint.
+      </div>
+      <div class="canvas-container">
+        <canvas id="pixelCanvas" width="600" height="600"></canvas>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div>
+        <div class="section-title">Geometry</div>
+        <div class="control-group">
+          <div class="control-row">
+            <label for="radiusSegments">Radial pixels (radius):</label>
+            <input
+              id="radiusSegments"
+              type="number"
+              min="5"
+              max="15"
+              step="1"
+              value="5"
+            />
+          </div>
+          <div class="hint">
+            Number of concentric rings from center to edge. Must be between 5 and 15.
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <label for="angleStep">Angular step (°):</label>
+            <select id="angleStep">
+              <!-- divisors of 360; small angles = many columns, large angles = few -->
+              <option value="5">5° (72 columns)</option>
+              <option value="6">6° (60 columns)</option>
+              <option value="8" selected>8° (45 columns)</option>
+              <option value="9">9° (40 columns)</option>
+              <option value="10">10° (36 columns)</option>
+              <option value="12">12° (30 columns)</option>
+              <option value="15">15° (24 columns)</option>
+              <option value="18">18° (20 columns)</option>
+              <option value="20">20° (18 columns)</option>
+              <option value="90">90° (4 columns)</option>  <!-- allows min 4 -->
+            </select>
+          </div>
+          <div class="hint">
+            Angular “scan line” spacing. All options divide 360° exactly so the pattern loops cleanly.
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <label for="ledSize">LED size:</label>
+          </div>
+          <input id="ledSize" type="range" min="0.2" max="1.0" step="0.05" value="0.7" />
+          <div class="status-line">
+            <span class="hint">Relative to spacing</span>
+            <span class="status-strong mono" id="ledSizeValue">70%</span>
+          </div>
+          <div class="hint">
+            Adjust to match your physical LED diameter vs spacing. Circles stay uniform across the grid.
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title">Color & Painting</div>
+        <div class="control-group">
+          <div class="control-row">
+            <label for="colorPicker">Current color:</label>
+            <input id="colorPicker" type="color" value="#ff0077" />
+          </div>
+          <div class="status-line">
+            <span>Hex:&nbsp;<span id="colorHex" class="status-strong mono">#ff0077</span></span>
+            <span class="hint" id="colorRgbLabel">RGB(255, 0, 119)</span>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <span class="pill">Brush mode</span>
+          </div>
+          <div class="buttons-row">
+            <button id="modeSingle" class="toggle-button active">Single</button>
+            <button id="modeRing" class="toggle-button">Fill ring</button>
+            <button id="modeRadius" class="toggle-button">Fill radius</button>
+          </div>
+          <div class="hint">
+            Single = one LED. Fill ring = all LEDs in that ring. Fill radius = all LEDs along that angle. Dragging works in all modes.
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <button id="fillAllButton" class="button-secondary">Fill entire disc</button>
+          </div>
+          <div class="hint">
+            Sets all LEDs to the current color (background), then you can paint on top.
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="section-title">Pattern Info</div>
+        <div class="status-line">
+          <span>Grid size:</span>
+          <span class="status-strong mono" id="gridInfo">5 radial × 45 angular</span>
+        </div>
+        <div class="status-line">
+          <span>Last painted pixel:</span>
+          <span class="status-strong mono" id="pixelInfo">—</span>
+        </div>
+        <div class="buttons-row">
+          <button id="clearButton" class="button-secondary">Clear pattern</button>
+          <button id="exportJsonButton">Export JSON</button>
+          <button id="exportCButton">Export C (PIC24)</button>
+        </div>
+        <div class="hint" style="margin-top: 6px;">
+          Export JSON for debugging, or C to drop directly into your PIC24 project.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById("pixelCanvas");
+      const ctx = canvas.getContext("2d");
+
+      const radiusInput = document.getElementById("radiusSegments");
+      const angleStepSelect = document.getElementById("angleStep");
+      const ledSizeInput = document.getElementById("ledSize");
+      const colorPicker = document.getElementById("colorPicker");
+
+      const colorHexSpan = document.getElementById("colorHex");
+      const colorRgbLabel = document.getElementById("colorRgbLabel");
+      const gridInfoSpan = document.getElementById("gridInfo");
+      const pixelInfoSpan = document.getElementById("pixelInfo");
+      const ledSizeValueSpan = document.getElementById("ledSizeValue");
+
+      const clearButton = document.getElementById("clearButton");
+      const exportJsonButton = document.getElementById("exportJsonButton");
+      const exportCButton = document.getElementById("exportCButton");
+      const fillAllButton = document.getElementById("fillAllButton");
+
+      const modeSingleBtn = document.getElementById("modeSingle");
+      const modeRingBtn = document.getElementById("modeRing");
+      const modeRadiusBtn = document.getElementById("modeRadius");
+
+      const OFF_COLOR = "#000000"; // slightly visible dark gray
+
+      let radiusSegments = 5;
+      let angleStepDeg = 8;
+      let nSectors = 360 / angleStepDeg;
+
+      let centerX = canvas.width / 2;
+      let centerY = canvas.height / 2;
+      let maxRadiusPx = Math.min(canvas.width, canvas.height) * 0.45;
+
+      let ledSizeScale = 0.7;
+
+      // Painting state for dragging
+      let isPainting = false;
+
+      // Brush mode: "single" | "ring" | "radius"
+      let paintMode = "single";
+
+      // pixels[r][theta] = color string
+      let pixels = [];
+
+      // --- Utility: color conversions ---
+      function hexToRgb(hex) {
+        const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        if (!m) return null;
+        return {
+          r: parseInt(m[1], 16),
+          g: parseInt(m[2], 16),
+          b: parseInt(m[3], 16)
+        };
+      }
+
+      function updateColorLabels() {
+        const hex = colorPicker.value;
+        colorHexSpan.textContent = hex.toLowerCase();
+        const rgb = hexToRgb(hex);
+        if (rgb) {
+          colorRgbLabel.textContent = "RGB(" + rgb.r + ", " + rgb.g + ", " + rgb.b + ")";
+        } else {
+          colorRgbLabel.textContent = "Invalid color";
+        }
+      }
+
+      // --- Geometry & grid initialization ---
+      function clampRadiusSegments(raw) {
+        let v = parseInt(raw, 10);
+        if (Number.isNaN(v)) v = 10;
+        if (v < 5) v = 5;
+        if (v > 15) v = 15;
+        return v;
+      }
+
+      function updateGridInfoLabel() {
+        gridInfoSpan.textContent =
+          radiusSegments + " radial × " + nSectors + " angular";
+      }
+
+      function initPixels() {
+        pixels = [];
+        for (let r = 0; r < radiusSegments; r++) {
+          const row = [];
+          for (let t = 0; t < nSectors; t++) {
+            row.push(OFF_COLOR);
+          }
+          pixels.push(row);
+        }
+        pixelInfoSpan.textContent = "—";
+        updateGridInfoLabel();
+      }
+
+      function recomputeGeometry() {
+        centerX = canvas.width / 2;
+        centerY = canvas.height / 2;
+        maxRadiusPx = Math.min(canvas.width, canvas.height) * 0.45;
+      }
+
+      // Compute LED circle center and radius for given indices
+      function getLedGeometry(rIndex, tIndex, radialStep, angleStepRad) {
+        const rCenter = (rIndex + 0.5) * radialStep;
+        const thetaCenter = (tIndex + 0.5) * angleStepRad;
+
+        const arcSpacing = rCenter * angleStepRad;
+        const baseSpacing = Math.min(radialStep, arcSpacing || radialStep);
+        const ledRadius = baseSpacing * 0.45 * ledSizeScale;
+
+        const cx = centerX + rCenter * Math.cos(thetaCenter);
+        const cy = centerY + rCenter * Math.sin(thetaCenter);
+
+        return { cx, cy, ledRadius };
+      }
+
+      // --- Drawing ---
+      function drawGrid() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const radialStep = maxRadiusPx / radiusSegments;
+        const angleStepRad = (2 * Math.PI) / nSectors;
+
+        for (let r = 0; r < radiusSegments; r++) {
+          for (let t = 0; t < nSectors; t++) {
+            const { cx, cy, ledRadius } = getLedGeometry(
+              r,
+              t,
+              radialStep,
+              angleStepRad
+            );
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, ledRadius, 0, 2 * Math.PI);
+            ctx.closePath();
+
+            ctx.fillStyle = pixels[r][t];
+            ctx.fill();
+
+            ctx.lineWidth = 0.6;
+            ctx.strokeStyle = "rgba(255, 255, 235, 0.4)";
+            ctx.stroke();
+          }
+        }
+
+        // Outer circle boundary for reference
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, maxRadiusPx, 0, 2 * Math.PI);
+        ctx.lineWidth = 1.0;
+        ctx.strokeStyle = "rgba(248, 250, 252, 0.7)";
+        ctx.stroke();
+      }
+
+      // --- Painting logic (supports modes) ---
+      function applyPaint(rIndex, thetaIndex) {
+        const color = colorPicker.value;
+
+        if (paintMode === "ring") {
+          for (let t = 0; t < nSectors; t++) {
+            pixels[rIndex][t] = color;
+          }
+        } else if (paintMode === "radius") {
+          for (let r = 0; r < radiusSegments; r++) {
+            pixels[r][thetaIndex] = color;
+          }
+        } else {
+          // single pixel
+          pixels[rIndex][thetaIndex] = color;
+        }
+
+        const startDeg = thetaIndex * angleStepDeg;
+        const endDeg = (thetaIndex + 1) * angleStepDeg;
+
+        pixelInfoSpan.textContent =
+          "[" +
+          paintMode +
+          "] ring " +
+          (rIndex + 1) +
+          "/" +
+          radiusSegments +
+          ", sector " +
+          (thetaIndex + 1) +
+          "/" +
+          nSectors +
+          " (" +
+          startDeg.toFixed(1) +
+          "° – " +
+          endDeg.toFixed(1) +
+          "°)";
+
+        drawGrid();
+      }
+
+      function paintAtCanvasPosition(x, y) {
+        const dx = x - centerX;
+        const dy = y - centerY;
+
+        const rPx = Math.sqrt(dx * dx + dy * dy);
+        if (rPx <= 0 || rPx > maxRadiusPx) {
+          return;
+        }
+
+        let angle = Math.atan2(dy, dx);
+        if (angle < 0) angle += 2 * Math.PI;
+
+        const radialStep = maxRadiusPx / radiusSegments;
+        const angleStepRad = (2 * Math.PI) / nSectors;
+
+        let rIndex = Math.floor(rPx / radialStep);
+        if (rIndex < 0) rIndex = 0;
+        if (rIndex >= radiusSegments) rIndex = radiusSegments - 1;
+
+        let thetaIndex = Math.floor(angle / angleStepRad);
+        if (thetaIndex < 0) thetaIndex = 0;
+        if (thetaIndex >= nSectors) thetaIndex = nSectors - 1;
+
+        applyPaint(rIndex, thetaIndex);
+      }
+
+      function pointerPosToCanvas(evt) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = (evt.clientX - rect.left) * scaleX;
+        const y = (evt.clientY - rect.top) * scaleY;
+        return { x, y };
+      }
+
+      // --- Clear & fill-all ---
+      function clearPattern() {
+        for (let r = 0; r < radiusSegments; r++) {
+          for (let t = 0; t < nSectors; t++) {
+            pixels[r][t] = OFF_COLOR;
+          }
+        }
+        pixelInfoSpan.textContent = "—";
+        drawGrid();
+      }
+
+      function fillAllWithColor() {
+        const color = colorPicker.value;
+        for (let r = 0; r < radiusSegments; r++) {
+          for (let t = 0; t < nSectors; t++) {
+            pixels[r][t] = color;
+          }
+        }
+        pixelInfoSpan.textContent = "[fill all]";
+        drawGrid();
+      }
+
+      // --- Export JSON ---
+      function exportPatternJson() {
+        const data = {
+          radiusSegments: radiusSegments,
+          angleStepDeg: angleStepDeg,
+          angularSegments: nSectors,
+          ledSizeScale: ledSizeScale,
+          offColor: OFF_COLOR,
+          pixels: pixels
+        };
+
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "circular_pixel_pattern.json";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      // --- Export C for PIC24 ---
+      function exportPatternC() {
+        // We'll generate:
+        //   #define PAT_RADIUS <n>
+        //   #define PAT_ANGLES_MAX 72
+        //   const uint8_t used_angles = <actual columns>;
+        //   const uint8_t pattern[PAT_ANGLES_MAX][PAT_RADIUS][3] = { ... };
+        //
+        // Only the first `used_angles` columns are filled; the rest
+        // are left as default-zero by the C compiler.
+
+        const PAT_ANGLES_MAX = 72;
+
+        let lines = [];
+        lines.push("// Auto-generated by Circular Pixel Art Generator");
+        lines.push("#include <stdint.h>");
+        lines.push("");
+        lines.push("#define PAT_RADIUS      " + radiusSegments);
+        lines.push("#define PAT_ANGLES_MAX " + PAT_ANGLES_MAX);
+        lines.push("");
+        lines.push("const uint8_t used_angles = " + nSectors + ";");
+        lines.push("");
+        lines.push("const uint8_t pattern[PAT_ANGLES_MAX][PAT_RADIUS][3] = {");
+
+        // pattern[theta][radius][rgb] for theta in [0, used_angles)
+        for (let theta = 0; theta < nSectors; theta++) {
+          lines.push("  {  // theta " + theta);
+          for (let r = 0; r < radiusSegments; r++) {
+            const hex = pixels[r][theta];
+            const rgb = hexToRgb(hex) || { r: 0, g: 0, b: 0 };
+            const comma = (r < radiusSegments - 1) ? "," : "";
+            lines.push(
+              "    {" + rgb.r + ", " + rgb.g + ", " + rgb.b + "}" + comma
+            );
+          }
+          const commaTheta = (theta < nSectors - 1) ? "," : "";
+          lines.push("  }" + commaTheta);
+        }
+
+        lines.push("};");
+        lines.push("");
+
+        const cText = lines.join("\n");
+        const blob = new Blob([cText], { type: "text/x-csrc" });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "pattern.c";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      // --- Brush mode UI ---
+      function setPaintMode(mode) {
+        paintMode = mode;
+        modeSingleBtn.classList.toggle("active", mode === "single");
+        modeRingBtn.classList.toggle("active", mode === "ring");
+        modeRadiusBtn.classList.toggle("active", mode === "radius");
+      }
+
+      modeSingleBtn.addEventListener("click", () => setPaintMode("single"));
+      modeRingBtn.addEventListener("click", () => setPaintMode("ring"));
+      modeRadiusBtn.addEventListener("click", () => setPaintMode("radius"));
+
+      // --- Control bindings ---
+      radiusInput.addEventListener("change", function () {
+        const newVal = clampRadiusSegments(radiusInput.value);
+        radiusSegments = newVal;
+        radiusInput.value = String(newVal);
+
+        initPixels();
+        drawGrid();
+      });
+
+      angleStepSelect.addEventListener("change", function () {
+        const newStep = parseInt(angleStepSelect.value, 10);
+        if (!Number.isFinite(newStep) || newStep <= 0) return;
+
+        angleStepDeg = newStep;
+        nSectors = Math.round(360 / angleStepDeg);
+
+        initPixels();
+        drawGrid();
+      });
+
+      ledSizeInput.addEventListener("input", function () {
+        const v = parseFloat(ledSizeInput.value);
+        if (!Number.isFinite(v)) return;
+        ledSizeScale = v;
+        ledSizeValueSpan.textContent = (ledSizeScale * 100).toFixed(0) + "%";
+        drawGrid();
+      });
+
+      colorPicker.addEventListener("input", updateColorLabels);
+      clearButton.addEventListener("click", clearPattern);
+      fillAllButton.addEventListener("click", fillAllWithColor);
+      exportJsonButton.addEventListener("click", exportPatternJson);
+      exportCButton.addEventListener("click", exportPatternC);
+
+      // --- Pointer events for click + drag painting ---
+      canvas.addEventListener("pointerdown", function (evt) {
+        evt.preventDefault();
+        isPainting = true;
+        canvas.setPointerCapture(evt.pointerId);
+        const { x, y } = pointerPosToCanvas(evt);
+        paintAtCanvasPosition(x, y);
+      });
+
+      canvas.addEventListener("pointermove", function (evt) {
+        if (!isPainting) return;
+        evt.preventDefault();
+        const { x, y } = pointerPosToCanvas(evt);
+        paintAtCanvasPosition(x, y);
+      });
+
+      canvas.addEventListener("pointerup", function (evt) {
+        isPainting = false;
+        canvas.releasePointerCapture(evt.pointerId);
+      });
+
+      canvas.addEventListener("pointerleave", function () {
+        isPainting = false;
+      });
+
+      // --- Initial setup ---
+      (function init() {
+        radiusSegments = clampRadiusSegments(radiusInput.value);
+        radiusInput.value = String(radiusSegments);
+
+        angleStepDeg = parseInt(angleStepSelect.value, 10);
+        if (!Number.isFinite(angleStepDeg) || angleStepDeg <= 0) {
+          angleStepDeg = 8;
+          angleStepSelect.value = "8";
+        }
+        nSectors = Math.round(360 / angleStepDeg);
+
+        ledSizeScale = parseFloat(ledSizeInput.value);
+        if (!Number.isFinite(ledSizeScale) || ledSizeScale <= 0) {
+          ledSizeScale = 0.7;
+          ledSizeInput.value = "0.7";
+        }
+        ledSizeValueSpan.textContent = (ledSizeScale * 100).toFixed(0) + "%";
+
+        setPaintMode("single");
+        recomputeGeometry();
+        initPixels();
+        updateColorLabels();
+        drawGrid();
+      })();
+    })();
+  </script>
+</body>
+</html>
