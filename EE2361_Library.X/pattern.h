@@ -16,6 +16,7 @@ extern "C" {
 #define PAT_RADIUS 5
 #define PAT_ANGLES 4
 
+extern const uint8_t used_angles;
 extern const uint8_t pattern[PAT_ANGLES][PAT_RADIUS][3];
 
 #ifdef	__cplusplus

@@ -15,7 +15,8 @@ extern "C" {
     void write_1(void);
     void hundredMicroSecond(void);
     void oneMilliSecond(void);
-
+    
+    void ws_send_pixel_asm(uint8_t g, uint8_t r, uint8_t b);
 
 
 #ifdef	__cplusplus

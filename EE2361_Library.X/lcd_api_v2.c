@@ -6,6 +6,8 @@
 #define FCY 16000000UL
 //#include "blommel_lab4_asmLib_v1.h"
 #include <libpic30.h>
+#include "lcd_api_v2.h"
+
 
 
 
