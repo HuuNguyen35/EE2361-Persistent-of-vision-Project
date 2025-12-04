@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
     // Must match the defines at the top of pattern.c
-#define PAT_RADIUS 5
+#define PAT_RADIUS 14
 #define PAT_ANGLES 4
 
 extern const uint8_t used_angles;

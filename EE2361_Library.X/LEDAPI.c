@@ -15,7 +15,7 @@
 
 // ============================ LED CONFIG ============================
 
-#define NUM_LEDS  5
+#define NUM_LEDS   14
 
 typedef struct {
     uint8_t r;
@@ -28,8 +28,10 @@ static Pixel leds[NUM_LEDS];
 // RA0 as WS2812 data pin
 #define LED_PIN_TRIS   TRISAbits.TRISA0
 #define LED_PIN_LAT    LATAbits.LATA0
+// THE RED WIRE IS +V = VCC
+// THE WHITE WIRE IS GND
 
-#define LED_ON_TIME_US_DEFAULT 500   // tweak as needed
+#define LED_ON_TIME_US_DEFAULT 500000   // tweak as needed - was 500
 
 
 // ============================ TIMER4-BASED BIT DRIVER ============================
@@ -118,6 +120,15 @@ static inline void ws_send_pixel(uint8_t r, uint8_t g, uint8_t b)
     ws_send_pixel_asm(g, r, b);  // GRB order
 }
 
+static inline void ws_send_pixel_old(uint8_t r, uint8_t g, uint8_t b)
+{
+    // Standard WS2812B is GRB
+    ws_send_byte(g);
+    ws_send_byte(r);
+    ws_send_byte(b);
+}
+
+
 // Latch: low for >= 50 us
 static inline void ws_reset_latch(void)
 {
@@ -135,6 +146,12 @@ void ws_clear_all(void)
         leds[i].b = 0;
     }
 }
+
+//void _ws_total_resest(int numLeds){
+//    for (int i = 0; i < numLeds; ++i) {
+//        ws_send_pixel(0, 0, 0);
+//    }
+//}
 
 void ws_set_all(uint8_t r, uint8_t g, uint8_t b)
 {
@@ -167,7 +184,7 @@ void ws_flash_column(uint8_t theta_idx, uint16_t on_time_us)
 // Display one angular column from pattern[][][] onto strip
 void ws_show_column(uint8_t theta_idx)
 {
-    if (theta_idx >= PAT_ANGLES) {
+    if (theta_idx >= used_angles) {
         theta_idx = 0;
     }
 

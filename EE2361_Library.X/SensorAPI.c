@@ -6,9 +6,9 @@
 
 // ========================= RPM CONFIG ==========================
 
-#define N_SAMPLES        10      // circular buffer length
+#define N_SAMPLES        200      // circular buffer length
 #define T2_PRESCALE      64      // must match T2 prescaler bits
-#define PULSES_PER_REV   1       // 1 pulse per revolution (1 reflective mark)
+#define PULSES_PER_REV   2       // 1 pulse per revolution (1 reflective mark)
 
 #define DEBOUNCE_US      50000UL   // 50000 µs = 50 ms
 
@@ -186,4 +186,51 @@ float sensor_rpm_from_ticks(uint32_t ticks)
     float rev_per_s = 1.0f / (period_s * (float)PULSES_PER_REV);
 
     return rev_per_s * 60.0f;
+}
+
+
+
+void sensor_rpm_shutdown(void)
+{
+    // Disable IC1 capture
+    IEC0bits.IC1IE = 0;       // disable IC1 interrupt
+    IC1CONbits.ICM = 0;       // turn off input capture
+
+    // Disable Timer2
+    IEC0bits.T2IE = 0;        // disable Timer2 interrupt
+    T2CONbits.TON = 0;        // stop Timer2
+}
+
+
+// ==================== FILTERED RPM (EMA) =======================
+
+float sensor_get_filtered_rpm(void)
+{
+    // 1) Get current averaged period in ticks (already debounced + buffered)
+    uint32_t avg_ticks = sensor_get_average_delta_ticks();
+
+    // If no valid data yet, just say 0
+    if (avg_ticks == 0) {
+        return 0.0f;
+    }
+
+    // 2) Convert to "raw" RPM using your existing function
+    float rpm_raw = sensor_rpm_from_ticks(avg_ticks);
+
+    // 3) Exponential moving average: rpm_filt = (1-?)*old + ?*new
+    //    ? controls how "fast" the filtered RPM follows changes.
+    //    Smaller ? -> smoother, slower; larger ? -> more responsive.
+    const float alpha = 0.1f;   // try 0.05?0.1 as a starting point
+//    return rpm_raw * (1.0 - alpha);
+    static uint8_t initialized = 0;
+    static float rpm_filt = 0.0f;
+
+    if (!initialized) {
+        rpm_filt   = rpm_raw;  // first sample: no history yet
+        initialized = 1;
+    } else {
+        rpm_filt = (1.0f - alpha) * rpm_filt + alpha * rpm_raw;
+    }
+
+    return rpm_filt;
 }

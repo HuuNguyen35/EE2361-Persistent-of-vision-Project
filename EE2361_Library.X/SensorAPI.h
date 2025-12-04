@@ -35,6 +35,8 @@ uint8_t  sensor_buffer_is_full(void);
 // Average period (in Timer2 ticks) over the current buffer contents.
 // Returns 0 if no valid samples yet.
 uint32_t sensor_get_average_delta_ticks(void);
+void sensor_rpm_shutdown(void);
+float sensor_get_filtered_rpm(void);
 
 #ifdef	__cplusplus
 }

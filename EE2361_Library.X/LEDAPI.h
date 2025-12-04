@@ -23,7 +23,7 @@ void ws_show(void);
 void ws_show_column(uint8_t theta_idx);  // uses pattern[][][] and ws_show()
 
 void ws_flash_column(uint8_t theta_idx, uint16_t on_time_us);
-
+//void ws_total_reset(int numLeds);
 
 
 #ifdef	__cplusplus

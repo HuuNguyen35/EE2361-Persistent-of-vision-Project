@@ -60,7 +60,7 @@
       border-radius: 50%;
       max-width: 100%;
       max-height: 100%;
-      touch-action: none; /* helps pointer events on touch */
+      touch-action: none;
     }
     .controls {
       background: rgba(15, 23, 42, 0.96);
@@ -193,6 +193,24 @@
     .mono {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
+    .recent-colors {
+      display: flex;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    .recent-color-swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.9);
+      cursor: pointer;
+      box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.9);
+      transition: transform 0.06s ease, box-shadow 0.12s ease;
+    }
+    .recent-color-swatch:hover {
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.8);
+      transform: translateY(-0.5px);
+    }
   </style>
 </head>
 <body>
@@ -229,23 +247,18 @@
 
         <div class="control-group">
           <div class="control-row">
-            <label for="angleStep">Angular step (°):</label>
-            <select id="angleStep">
-              <!-- divisors of 360; small angles = many columns, large angles = few -->
-              <option value="5">5° (72 columns)</option>
-              <option value="6">6° (60 columns)</option>
-              <option value="8" selected>8° (45 columns)</option>
-              <option value="9">9° (40 columns)</option>
-              <option value="10">10° (36 columns)</option>
-              <option value="12">12° (30 columns)</option>
-              <option value="15">15° (24 columns)</option>
-              <option value="18">18° (20 columns)</option>
-              <option value="20">20° (18 columns)</option>
-              <option value="90">90° (4 columns)</option>  <!-- allows min 4 -->
-            </select>
+            <label for="columnsInput">Columns around circle:</label>
+            <input
+              id="columnsInput"
+              type="number"
+              min="4"
+              max="144"
+              step="2"
+              value="48"
+            />
           </div>
           <div class="hint">
-            Angular “scan line” spacing. All options divide 360° exactly so the pattern loops cleanly.
+            Even numbers only. More columns = finer angular resolution when you test your POV device.
           </div>
         </div>
 
@@ -293,6 +306,16 @@
 
         <div class="control-group">
           <div class="control-row">
+            <span class="pill">Recent colors</span>
+          </div>
+          <div class="recent-colors" id="recentColors"></div>
+          <div class="hint">
+            Click a swatch to reuse a color. Stores the last 3 colors you used.
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
             <button id="fillAllButton" class="button-secondary">Fill entire disc</button>
           </div>
           <div class="hint">
@@ -305,13 +328,14 @@
         <div class="section-title">Pattern Info</div>
         <div class="status-line">
           <span>Grid size:</span>
-          <span class="status-strong mono" id="gridInfo">5 radial × 45 angular</span>
+          <span class="status-strong mono" id="gridInfo">5 radial × 48 angular</span>
         </div>
         <div class="status-line">
           <span>Last painted pixel:</span>
           <span class="status-strong mono" id="pixelInfo">—</span>
         </div>
         <div class="buttons-row">
+          <button id="undoButton" class="button-secondary">Undo</button>
           <button id="clearButton" class="button-secondary">Clear pattern</button>
           <button id="exportJsonButton">Export JSON</button>
           <button id="exportCButton">Export C (PIC24)</button>
@@ -329,7 +353,7 @@
       const ctx = canvas.getContext("2d");
 
       const radiusInput = document.getElementById("radiusSegments");
-      const angleStepSelect = document.getElementById("angleStep");
+      const columnsInput = document.getElementById("columnsInput");
       const ledSizeInput = document.getElementById("ledSize");
       const colorPicker = document.getElementById("colorPicker");
 
@@ -343,16 +367,19 @@
       const exportJsonButton = document.getElementById("exportJsonButton");
       const exportCButton = document.getElementById("exportCButton");
       const fillAllButton = document.getElementById("fillAllButton");
+      const undoButton = document.getElementById("undoButton");
 
       const modeSingleBtn = document.getElementById("modeSingle");
       const modeRingBtn = document.getElementById("modeRing");
       const modeRadiusBtn = document.getElementById("modeRadius");
 
-      const OFF_COLOR = "#000000"; // slightly visible dark gray
+      const recentColorsContainer = document.getElementById("recentColors");
+
+      const OFF_COLOR = "#000000";
+      const MAX_UNDO = 200;
 
       let radiusSegments = 5;
-      let angleStepDeg = 8;
-      let nSectors = 360 / angleStepDeg;
+      let nSectors = 48;
 
       let centerX = canvas.width / 2;
       let centerY = canvas.height / 2;
@@ -360,14 +387,17 @@
 
       let ledSizeScale = 0.7;
 
-      // Painting state for dragging
       let isPainting = false;
-
-      // Brush mode: "single" | "ring" | "radius"
       let paintMode = "single";
 
       // pixels[r][theta] = color string
       let pixels = [];
+
+      // Undo stack: each entry is { changes: [{r, t, prev}], label: string }
+      let undoStack = [];
+
+      // Recent colors
+      let recentColors = [];
 
       // --- Utility: color conversions ---
       function hexToRgb(hex) {
@@ -389,6 +419,37 @@
         } else {
           colorRgbLabel.textContent = "Invalid color";
         }
+        addRecentColor(hex);
+      }
+
+      // --- Recent colors ---
+      function addRecentColor(hex) {
+        if (!hex) return;
+        hex = hex.toLowerCase();
+        // Move to front / dedupe
+        recentColors = recentColors.filter(c => c !== hex);
+        recentColors.unshift(hex);
+        if (recentColors.length > 3) {
+          recentColors.length = 3;
+        }
+        renderRecentColors();
+      }
+
+      function renderRecentColors() {
+        recentColorsContainer.innerHTML = "";
+        if (recentColors.length === 0) return;
+
+        recentColors.forEach(color => {
+          const swatch = document.createElement("div");
+          swatch.className = "recent-color-swatch";
+          swatch.style.backgroundColor = color;
+          swatch.title = color;
+          swatch.addEventListener("click", () => {
+            colorPicker.value = color;
+            updateColorLabels();
+          });
+          recentColorsContainer.appendChild(swatch);
+        });
       }
 
       // --- Geometry & grid initialization ---
@@ -397,6 +458,17 @@
         if (Number.isNaN(v)) v = 10;
         if (v < 5) v = 5;
         if (v > 15) v = 15;
+        return v;
+      }
+
+      function clampColumns(raw) {
+        let v = parseInt(raw, 10);
+        if (Number.isNaN(v)) v = 24;
+        if (v < 4) v = 4;
+        if (v > 144) v = 144;
+        // enforce even
+        if (v % 2 !== 0) v += 1;
+        if (v > 144) v = 144;
         return v;
       }
 
@@ -415,6 +487,7 @@
           pixels.push(row);
         }
         pixelInfoSpan.textContent = "—";
+        undoStack = [];
         updateGridInfoLabel();
       }
 
@@ -422,6 +495,48 @@
         centerX = canvas.width / 2;
         centerY = canvas.height / 2;
         maxRadiusPx = Math.min(canvas.width, canvas.height) * 0.45;
+      }
+
+      // Resize + resample pattern when geometry changes
+      function resizeGrid(newRadius, newSectors) {
+        const oldRadius = radiusSegments;
+        const oldSectors = nSectors;
+        const oldPixels = pixels;
+
+        radiusSegments = newRadius;
+        nSectors = newSectors;
+
+        // If no previous pixels, just init fresh
+        if (!oldPixels || oldPixels.length === 0 || oldRadius === 0 || oldSectors === 0) {
+          initPixels();
+          drawGrid();
+          return;
+        }
+
+        const newPixels = [];
+        for (let r = 0; r < newRadius; r++) {
+          const row = [];
+          for (let t = 0; t < newSectors; t++) {
+            // Map new indices to closest old indices (resampling)
+            let oldR = Math.floor(r * oldRadius / newRadius);
+            let oldT = Math.floor(t * oldSectors / newSectors);
+
+            if (oldR < 0) oldR = 0;
+            if (oldR >= oldRadius) oldR = oldRadius - 1;
+            if (oldT < 0) oldT = 0;
+            if (oldT >= oldSectors) oldT = oldSectors - 1;
+
+            const color = oldPixels[oldR][oldT] ?? OFF_COLOR;
+            row.push(color);
+          }
+          newPixels.push(row);
+        }
+
+        pixels = newPixels;
+        undoStack = []; // geometry change resets undo (keeps logic simple)
+        updateGridInfoLabel();
+        pixelInfoSpan.textContent = "[resampled]";
+        drawGrid();
       }
 
       // Compute LED circle center and radius for given indices
@@ -468,7 +583,6 @@
           }
         }
 
-        // Outer circle boundary for reference
         ctx.beginPath();
         ctx.arc(centerX, centerY, maxRadiusPx, 0, 2 * Math.PI);
         ctx.lineWidth = 1.0;
@@ -476,25 +590,60 @@
         ctx.stroke();
       }
 
-      // --- Painting logic (supports modes) ---
+      // --- Undo ---
+      function recordAction(changes, label) {
+        if (!changes || changes.length === 0) return;
+        undoStack.push({ changes, label });
+        if (undoStack.length > MAX_UNDO) {
+          undoStack.shift();
+        }
+      }
+
+      function undoLast() {
+        const action = undoStack.pop();
+        if (!action) return;
+        const { changes } = action;
+        for (const { r, t, prev } of changes) {
+          if (
+            r >= 0 &&
+            r < radiusSegments &&
+            t >= 0 &&
+            t < nSectors
+          ) {
+            pixels[r][t] = prev;
+          }
+        }
+        pixelInfoSpan.textContent = "[undo]";
+        drawGrid();
+      }
+
+      // --- Painting logic ---
       function applyPaint(rIndex, thetaIndex) {
         const color = colorPicker.value;
+        const changes = [];
+
+        function setPixel(r, t) {
+          const prev = pixels[r][t];
+          if (prev === color) return;
+          pixels[r][t] = color;
+          changes.push({ r, t, prev });
+        }
 
         if (paintMode === "ring") {
           for (let t = 0; t < nSectors; t++) {
-            pixels[rIndex][t] = color;
+            setPixel(rIndex, t);
           }
         } else if (paintMode === "radius") {
           for (let r = 0; r < radiusSegments; r++) {
-            pixels[r][thetaIndex] = color;
+            setPixel(r, thetaIndex);
           }
         } else {
-          // single pixel
-          pixels[rIndex][thetaIndex] = color;
+          setPixel(rIndex, thetaIndex);
         }
 
-        const startDeg = thetaIndex * angleStepDeg;
-        const endDeg = (thetaIndex + 1) * angleStepDeg;
+        if (changes.length > 0) {
+          recordAction(changes, paintMode);
+        }
 
         pixelInfoSpan.textContent =
           "[" +
@@ -503,15 +652,10 @@
           (rIndex + 1) +
           "/" +
           radiusSegments +
-          ", sector " +
+          ", column " +
           (thetaIndex + 1) +
           "/" +
-          nSectors +
-          " (" +
-          startDeg.toFixed(1) +
-          "° – " +
-          endDeg.toFixed(1) +
-          "°)";
+          nSectors;
 
         drawGrid();
       }
@@ -553,10 +697,18 @@
 
       // --- Clear & fill-all ---
       function clearPattern() {
+        const changes = [];
         for (let r = 0; r < radiusSegments; r++) {
           for (let t = 0; t < nSectors; t++) {
-            pixels[r][t] = OFF_COLOR;
+            const prev = pixels[r][t];
+            if (prev !== OFF_COLOR) {
+              pixels[r][t] = OFF_COLOR;
+              changes.push({ r, t, prev });
+            }
           }
+        }
+        if (changes.length > 0) {
+          recordAction(changes, "clear");
         }
         pixelInfoSpan.textContent = "—";
         drawGrid();
@@ -564,17 +716,28 @@
 
       function fillAllWithColor() {
         const color = colorPicker.value;
+        const changes = [];
         for (let r = 0; r < radiusSegments; r++) {
           for (let t = 0; t < nSectors; t++) {
-            pixels[r][t] = color;
+            const prev = pixels[r][t];
+            if (prev !== color) {
+              pixels[r][t] = color;
+              changes.push({ r, t, prev });
+            }
           }
         }
+        if (changes.length > 0) {
+          recordAction(changes, "fillAll");
+        }
         pixelInfoSpan.textContent = "[fill all]";
+        addRecentColor(color);
         drawGrid();
       }
 
       // --- Export JSON ---
       function exportPatternJson() {
+        const angleStepDeg = 360 / nSectors;
+
         const data = {
           radiusSegments: radiusSegments,
           angleStepDeg: angleStepDeg,
@@ -599,14 +762,8 @@
 
       // --- Export C for PIC24 ---
       function exportPatternC() {
-        // We'll generate:
-        //   #define PAT_RADIUS <n>
-        //   #define PAT_ANGLES_MAX 72
-        //   const uint8_t used_angles = <actual columns>;
-        //   const uint8_t pattern[PAT_ANGLES_MAX][PAT_RADIUS][3] = { ... };
-        //
-        // Only the first `used_angles` columns are filled; the rest
-        // are left as default-zero by the C compiler.
+        // NOTE: radial order is REVERSED when exporting:
+        // pattern[theta][0] now corresponds to the OUTERMOST ring.
 
         const PAT_ANGLES_MAX = 72;
 
@@ -625,7 +782,9 @@
         for (let theta = 0; theta < nSectors; theta++) {
           lines.push("  {  // theta " + theta);
           for (let r = 0; r < radiusSegments; r++) {
-            const hex = pixels[r][theta];
+            // Reverse radial index for export
+            const srcR = radiusSegments - 1 - r;
+            const hex = pixels[srcR][theta];
             const rgb = hexToRgb(hex) || { r: 0, g: 0, b: 0 };
             const comma = (r < radiusSegments - 1) ? "," : "";
             lines.push(
@@ -667,22 +826,18 @@
       // --- Control bindings ---
       radiusInput.addEventListener("change", function () {
         const newVal = clampRadiusSegments(radiusInput.value);
-        radiusSegments = newVal;
         radiusInput.value = String(newVal);
+        if (newVal === radiusSegments) return;
 
-        initPixels();
-        drawGrid();
+        resizeGrid(newVal, nSectors);
       });
 
-      angleStepSelect.addEventListener("change", function () {
-        const newStep = parseInt(angleStepSelect.value, 10);
-        if (!Number.isFinite(newStep) || newStep <= 0) return;
+      columnsInput.addEventListener("change", function () {
+        const newVal = clampColumns(columnsInput.value);
+        columnsInput.value = String(newVal);
+        if (newVal === nSectors) return;
 
-        angleStepDeg = newStep;
-        nSectors = Math.round(360 / angleStepDeg);
-
-        initPixels();
-        drawGrid();
+        resizeGrid(radiusSegments, newVal);
       });
 
       ledSizeInput.addEventListener("input", function () {
@@ -698,6 +853,7 @@
       fillAllButton.addEventListener("click", fillAllWithColor);
       exportJsonButton.addEventListener("click", exportPatternJson);
       exportCButton.addEventListener("click", exportPatternC);
+      undoButton.addEventListener("click", undoLast);
 
       // --- Pointer events for click + drag painting ---
       canvas.addEventListener("pointerdown", function (evt) {
@@ -729,12 +885,8 @@
         radiusSegments = clampRadiusSegments(radiusInput.value);
         radiusInput.value = String(radiusSegments);
 
-        angleStepDeg = parseInt(angleStepSelect.value, 10);
-        if (!Number.isFinite(angleStepDeg) || angleStepDeg <= 0) {
-          angleStepDeg = 8;
-          angleStepSelect.value = "8";
-        }
-        nSectors = Math.round(360 / angleStepDeg);
+        nSectors = clampColumns(columnsInput.value);
+        columnsInput.value = String(nSectors);
 
         ledSizeScale = parseFloat(ledSizeInput.value);
         if (!Number.isFinite(ledSizeScale) || ledSizeScale <= 0) {
