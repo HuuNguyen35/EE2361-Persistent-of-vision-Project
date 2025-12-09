@@ -22,8 +22,6 @@ extern "C" {
     void POV_SetLcdUpdate(uint16_t newNum);
 
 
-#include "PersistenceOfVisionAPI.h"
-
 
 #ifdef	__cplusplus
 }

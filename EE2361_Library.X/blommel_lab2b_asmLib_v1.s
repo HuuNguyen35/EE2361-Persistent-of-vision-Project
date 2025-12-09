@@ -44,36 +44,30 @@ _oneMilliSecond:
     return
     
     
-; =====================================================
-; void ws_send_pixel_asm(uint8_t g, uint8_t r, uint8_t b);
-;  - g in W0L, r in W1L, b in W2L   (XC16 calling conv.)
-;  - Outputs 24 bits GRB, MSB-first, with tight timing.
-;  - NO calls back into C between bytes.
-; =====================================================
+;G, R, B come into w0, w1, w2
     
 _ws_send_pixel_asm:
-    ; ---------- Send G (in W0L) ----------
-    mov     W0, W3          ; working byte = G
-    mov     #8, W0          ; loop counter = 8 bits
+    mov     W0, W3 ;w3 is the value we're analyzing
+    mov     #8, W0 ;w0 becomes the loop counter
 
 g_loop:
-    btst    W3, #7          ; test MSB
+    btst    W3, #7 
     bra     NZ, g_one
 
 ;5.6, 12.8 cycles
 g_zero:
-    ; '0' bit timing (inline write_0)
+    ;write a 0
     inc     LATA    ;1
     repeat  #3	    ;1
     nop		    ;1+3
     bclr    LATA, #0	;1
     repeat  #4	    ;1
     nop		    ;1+4
-    bra     g_next  ;2+4(g_next)
+    bra     g_next  ;2+4
 
 ;11.2, 9.6 cycles
 g_one:
-    ; '1' bit timing (inline write_1)
+    ;write a 1
     inc     LATA
     repeat  #8
     nop
@@ -82,14 +76,13 @@ g_one:
     nop
 
 g_next:
-    sl      W3, W3          ; shift next bit into MSB
+    sl      W3, W3 ;shift to look at the next bit
     dec     W0, W0
     bra     NZ, g_loop
 
 
-    ; ---------- Send R (in W1L) ----------
-    mov     W1, W3          ; working byte = R
-    mov     #8, W0
+    mov     W1, W3;now R
+    mov     #8, W0;w0 = loop counter
 
 r_loop:
     btst    W3, #7
@@ -118,9 +111,8 @@ r_next:
     bra     NZ, r_loop
 
 
-    ; ---------- Send B (in W2L) ----------
-    mov     W2, W3          ; working byte = B
-    mov     #8, W0
+    mov     W2, W3; now B
+    mov     #8, W0;w0 = loop counter
 
 b_loop:
     btst    W3, #7

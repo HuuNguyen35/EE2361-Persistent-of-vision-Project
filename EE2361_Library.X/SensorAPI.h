@@ -24,16 +24,8 @@ uint32_t sensor_get_hit_count(void);
 float    sensor_ticks_to_seconds(uint32_t ticks);
 float    sensor_rpm_from_ticks(uint32_t ticks);
 
-// --- New circular-buffer helpers ---
-
-// How many valid samples are currently in the buffer (0..N_SAMPLES).
-uint8_t  sensor_get_buffer_count(void);
-
-// Has the buffer reached its full size (N_SAMPLES)?
 uint8_t  sensor_buffer_is_full(void);
 
-// Average period (in Timer2 ticks) over the current buffer contents.
-// Returns 0 if no valid samples yet.
 uint32_t sensor_get_average_delta_ticks(void);
 void sensor_rpm_shutdown(void);
 float sensor_get_rpm(void);
