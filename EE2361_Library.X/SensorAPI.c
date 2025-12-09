@@ -2,44 +2,31 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define FCY 16000000UL  // must match system frequency
+#define FCY 16000000UL  
 
-// ========================= RPM CONFIG ==========================
+#define N_SAMPLES           10  // circular buffer length
+#define T2_PRESCALE         64 // gotta match Timer2 prescaler
+#define PULSES_PER_REV      2  //pulses per revolution (2 for 2 fan blades)
 
-#define N_SAMPLES        200      // circular buffer length
-#define T2_PRESCALE      64      // must match T2 prescaler bits
-#define PULSES_PER_REV   2       // 1 pulse per revolution (1 reflective mark)
-
-#define DEBOUNCE_US      50000UL   // 50000 µs = 50 ms
-
-// Convert debounce time to Timer2 ticks:
-// ticks = DEBOUNCE_US * FCY / (1e6 * T2_PRESCALE)
+//The "debounding" for the sensor
+#define DEBOUNCE_US      50000UL   // 5000 µs = 5 ms
 #define DEBOUNCE_TICKS  ((uint32_t)((DEBOUNCE_US * (FCY / 1000000UL)) / T2_PRESCALE))
 
-// ========================= GLOBALS =============================
 
 static volatile uint32_t period_buf[N_SAMPLES];
-static volatile uint8_t  period_index   = 0;
-static volatile uint8_t  buffer_count   = 0;   // how many valid entries (0..N_SAMPLES)
-static volatile uint32_t ic1_hits       = 0;
-static volatile uint32_t t2_overflows   = 0;
-static volatile uint32_t last_time32    = 0;
+static volatile uint8_t  period_index = 0;
+static volatile uint8_t  buffer_count = 0;
+static volatile uint32_t ic1_hits = 0;
+static volatile uint32_t t2_overflows = 0;
+static volatile uint32_t last_time32 = 0;
 static volatile uint32_t latest_delta32 = 0;
 
-// ========================= GPIO / PPS SETUP ====================
-// Assumes sensor DO is connected to RP4 / RB4.
 
 static void sensor_pin_init(void)
 {
-    TRISBbits.TRISB4 = 1;      // RB4 as input
-
-    // Map RP4 to IC1 using PPS:
-    // RPINR7bits.IC1R selects the RPx input.
-    // IC1R = 4 -> IC1 <- RP4
+    TRISBbits.TRISB4 = 1;
     RPINR7bits.IC1R = 4;
 }
-
-// ========================= TIMER2 SETUP ========================
 
 static void timer2_init(void)
 {
@@ -47,33 +34,36 @@ static void timer2_init(void)
     TMR2  = 0;
 
     T2CONbits.TCKPS = 0b10;  // 1:64 prescale (tick = 4 us at 16 MHz)
-    T2CONbits.TCS   = 0;     // internal clock
-    PR2             = 0xFFFF;
+    T2CONbits.TCS = 0;     // internal clock
+    PR2 = 0xFFFF;
 
-    IFS0bits.T2IF = 0;       // clear flag
-    IEC0bits.T2IE = 1;       // enable Timer2 interrupt
+    IFS0bits.T2IF = 0; 
+    IEC0bits.T2IE = 1; 
 
-    T2CONbits.TON = 1;       // start Timer2
+    //start timer 2
+    T2CONbits.TON = 1;
 }
 
 void __attribute__((__interrupt__, auto_psv)) _T2Interrupt(void)
 {
-    IFS0bits.T2IF = 0;       // clear Timer2 interrupt flag
-    t2_overflows++;          // increment overflow counter
+    IFS0bits.T2IF = 0;
+    t2_overflows++;
 }
 
-// ========================= INPUT CAPTURE 1 SETUP ===============
+int getBufferSize(){
+    return N_SAMPLES;
+}
 
 static void ic1_init(void)
 {
-    IC1CONbits.ICTMR = 1;    // use Timer2
+    IC1CONbits.ICTMR = 1; // use Timer2
     IC1CONbits.ICI   = 0b00; // interrupt on every capture
 
-    last_time32      = 0;
-    latest_delta32   = 0;
-    ic1_hits         = 0;
-    t2_overflows     = 0;
-    buffer_count     = 0;
+    last_time32 = 0;
+    latest_delta32 = 0;
+    ic1_hits = 0;
+    t2_overflows = 0;
+    buffer_count = 0;
 
     for (uint8_t i = 0; i < N_SAMPLES; i++) {
         period_buf[i] = 0;
@@ -82,7 +72,7 @@ static void ic1_init(void)
 
     IFS0bits.IC1IF = 0;
     IEC0bits.IC1IE = 1;
-    IC1CONbits.ICM = 0b010;    // capture every falling edge
+    IC1CONbits.ICM = 0b010;// capture every falling edge
 }
 
 void __attribute__((__interrupt__, auto_psv)) _IC1Interrupt(void)
@@ -116,15 +106,26 @@ void __attribute__((__interrupt__, auto_psv)) _IC1Interrupt(void)
     }
 }
 
-// ========================= PUBLIC API ==========================
-
+// ============== PUBLIC API =======================================
 void sensor_rpm_init(void)
 {
-    // Note: AD1PCFG should already be set to digital in main.
     sensor_pin_init();
     timer2_init();
     ic1_init();
 }
+
+
+void sensor_rpm_shutdown(void)
+{
+    IEC0bits.IC1IE = 0;
+    IC1CONbits.ICM = 0;
+    
+    //Disable Timer2
+    IEC0bits.T2IE = 0; 
+    T2CONbits.TON = 0;
+}
+
+
 
 uint32_t sensor_get_latest_delta_ticks(void)
 {
@@ -149,10 +150,10 @@ uint8_t sensor_buffer_is_full(void)
 // Average over current buffer contents (16-bit values).
 uint32_t sensor_get_average_delta_ticks(void)
 {
-    uint64_t sum   = 0;     // 64-bit to be extra safe
+    uint64_t sum   = 0;
     uint8_t  count = 0;
 
-    // Briefly disable IC1 interrupt so buffer doesn't change while summing.
+    // don't wanna update the values as we calculate this
     IEC0bits.IC1IE = 0;
 
     uint8_t local_count = buffer_count;
@@ -190,47 +191,11 @@ float sensor_rpm_from_ticks(uint32_t ticks)
 
 
 
-void sensor_rpm_shutdown(void)
+
+
+float sensor_get_rpm(void)
 {
-    // Disable IC1 capture
-    IEC0bits.IC1IE = 0;       // disable IC1 interrupt
-    IC1CONbits.ICM = 0;       // turn off input capture
-
-    // Disable Timer2
-    IEC0bits.T2IE = 0;        // disable Timer2 interrupt
-    T2CONbits.TON = 0;        // stop Timer2
-}
-
-
-// ==================== FILTERED RPM (EMA) =======================
-
-float sensor_get_filtered_rpm(void)
-{
-    // 1) Get current averaged period in ticks (already debounced + buffered)
     uint32_t avg_ticks = sensor_get_average_delta_ticks();
-
-    // If no valid data yet, just say 0
-    if (avg_ticks == 0) {
-        return 0.0f;
-    }
-
-    // 2) Convert to "raw" RPM using your existing function
-    float rpm_raw = sensor_rpm_from_ticks(avg_ticks);
-
-    // 3) Exponential moving average: rpm_filt = (1-?)*old + ?*new
-    //    ? controls how "fast" the filtered RPM follows changes.
-    //    Smaller ? -> smoother, slower; larger ? -> more responsive.
-    const float alpha = 0.1f;   // try 0.05?0.1 as a starting point
-//    return rpm_raw * (1.0 - alpha);
-    static uint8_t initialized = 0;
-    static float rpm_filt = 0.0f;
-
-    if (!initialized) {
-        rpm_filt   = rpm_raw;  // first sample: no history yet
-        initialized = 1;
-    } else {
-        rpm_filt = (1.0f - alpha) * rpm_filt + alpha * rpm_raw;
-    }
-
-    return rpm_filt;
+    float rpm = sensor_rpm_from_ticks(avg_ticks);
+    return rpm;
 }

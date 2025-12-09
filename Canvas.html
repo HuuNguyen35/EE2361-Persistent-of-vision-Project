@@ -123,6 +123,21 @@
     input[type="range"] {
       width: 100%;
     }
+    input[type="text"] {
+      background: rgba(17, 24, 39, 0.9);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      border-radius: 7px;
+      padding: 4px 7px;
+      color: #e5e7eb;
+      font-size: 0.85rem;
+      outline: none;
+      min-width: 0;
+      flex: 1;
+    }
+    input[type="text"]:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+    }
     button {
       border-radius: 999px;
       border: 1px solid rgba(148, 163, 184, 0.8);
@@ -237,11 +252,11 @@
               min="5"
               max="15"
               step="1"
-              value="5"
+              value="14"
             />
           </div>
           <div class="hint">
-            Number of concentric rings from center to edge. Must be between 5 and 15.
+            Number of concentric rings from center to edge. Suggested: 14 for text.
           </div>
         </div>
 
@@ -254,11 +269,11 @@
               min="4"
               max="144"
               step="2"
-              value="48"
+              value="24"
             />
           </div>
           <div class="hint">
-            Even numbers only. More columns = finer angular resolution when you test your POV device.
+            Even numbers only. Suggested: 24 for text with variable-width 3×5 font.
           </div>
         </div>
 
@@ -310,7 +325,7 @@
           </div>
           <div class="recent-colors" id="recentColors"></div>
           <div class="hint">
-            Click a swatch to reuse a color. Stores the last 3 colors you used.
+            Click a swatch to reuse a color. Stores the last 3 colors you actually painted with.
           </div>
         </div>
 
@@ -324,11 +339,83 @@
         </div>
       </div>
 
+      <!-- Preset patterns -->
+      <div>
+        <div class="section-title">Preset patterns</div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <label for="patternSelect">Pattern type:</label>
+            <select id="patternSelect">
+              <option value="rings">Concentric rings / target</option>
+              <option value="stripes">Angular stripes</option>
+              <option value="spiral">Spiral swirl</option>
+              <option value="radialWave">Radial wave bands</option>
+              <option value="checker">Checkerboard</option>
+              <option value="spokes">Spokes</option>
+              <option value="radialGradient">Radial gradient</option>
+              <option value="angularGradient">Angular gradient</option>
+              <option value="outerRing">Outer ring</option>
+              <option value="innerGlow">Inner glow</option>
+            </select>
+          </div>
+          <div class="hint">
+            Patterns adapt to your current LED count and radii.
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <span class="pill">Pattern colors</span>
+          </div>
+          <div class="control-row">
+            <input id="patternColor1" type="color" value="#00f0ff" />
+            <input id="patternColor2" type="color" value="#ff0077" />
+            <input id="patternColor3" type="color" value="#ffd447" />
+            <input id="patternColor4" type="color" value="#22c55e" />
+          </div>
+          <div class="hint">
+            Pick 2–4 colors. The pattern cycles through them; unused inputs are optional.
+          </div>
+        </div>
+
+        <div class="control-group">
+          <div class="control-row">
+            <button id="applyPatternButton">Apply pattern to canvas</button>
+          </div>
+          <div class="hint">
+            Overwrites the current canvas with the pattern. Use Undo if you change your mind.
+          </div>
+        </div>
+      </div>
+
+      <!-- Text rendering -->
+      <div>
+        <div class="section-title">Text</div>
+        <div class="control-group">
+          <div class="control-row">
+            <label for="textInput">Text:</label>
+            <input id="textInput" type="text" maxlength="16" placeholder="HELLO" />
+          </div>
+          <div class="control-row">
+            <label for="textColor">Text color:</label>
+            <input id="textColor" type="color" value="#ffd447" />
+          </div>
+          <div class="control-row">
+            <button id="applyTextButton">Render 3×5 font text</button>
+          </div>
+          <div class="hint">
+            Variable-width 3×5 pixel font (1–3 columns per character) with a 1-column gap between characters.
+            Best with 14 radial pixels &amp; ~24 columns.
+          </div>
+        </div>
+      </div>
+
       <div>
         <div class="section-title">Pattern Info</div>
         <div class="status-line">
           <span>Grid size:</span>
-          <span class="status-strong mono" id="gridInfo">5 radial × 48 angular</span>
+          <span class="status-strong mono" id="gridInfo">14 radial × 24 angular</span>
         </div>
         <div class="status-line">
           <span>Last painted pixel:</span>
@@ -375,11 +462,78 @@
 
       const recentColorsContainer = document.getElementById("recentColors");
 
+      // Pattern controls
+      const patternSelect = document.getElementById("patternSelect");
+      const applyPatternButton = document.getElementById("applyPatternButton");
+      const patternColorInputs = [
+        document.getElementById("patternColor1"),
+        document.getElementById("patternColor2"),
+        document.getElementById("patternColor3"),
+        document.getElementById("patternColor4"),
+      ];
+
+      // Text controls
+      const textInput = document.getElementById("textInput");
+      const textColorInput = document.getElementById("textColor");
+      const applyTextButton = document.getElementById("applyTextButton");
+
       const OFF_COLOR = "#000000";
       const MAX_UNDO = 200;
 
-      let radiusSegments = 5;
-      let nSectors = 48;
+      // Variable-width 3×5 pixel font (height=5, width 1–3).
+      // Each row uses '1' = lit, '0' = off. Width is inferred from row length.
+      const FONT_HEIGHT = 5;
+      const FONT = {
+        // Uppercase letters (rows reversed)
+        "A": ["101","101","111","101","111"],              // width 3
+        "B": ["110","101","110","101","110"],              // width 3 (symmetric)
+        "C": ["11","10","10","10","11"],                   // width 2 (symmetric)
+        "D": ["110","101","101","101","110"],              // width 3 (symmetric)
+        "E": ["11","10","11","10","11"],                   // width 2 (symmetric)
+        "F": ["10","10","11","10","11"],                   // width 2
+        "G": ["111","101","101","100","111"],              // width 3
+        "H": ["101","101","111","101","101"],              // width 3 (symmetric)
+        "I": ["1","1","1","1","1"],                        // width 1 (symmetric)
+        "J": ["11","11","01","01","01"],                   // width 2
+        "K": ["101","110","100","110","101"],              // width 3 (symmetric)
+        "L": ["11","10","10","10","10"],                   // width 2
+        "M": ["101","101","111","111","101"],              // width 3
+        "N": ["101","111","111","111","101"],              // width 3 (symmetric-ish)
+        "O": ["111","101","101","101","111"],              // width 3 (symmetric)
+        "P": ["100","100","111","101","111"],              // width 3
+        "Q": ["001","111","101","101","111"],              // width 3
+        "R": ["101","101","111","101","111"],              // width 3
+        "S": ["11","01","11","10","11"],                   // width 2
+        "T": ["01","01","01","01","11"],                   // width 2
+        "U": ["111","101","101","101","101"],              // width 3
+        "V": ["010","101","101","101","101"],              // width 3
+        "W": ["101","111","111","101","101"],              // width 3
+        "X": ["101","101","010","101","101"],              // width 3 (symmetric)
+        "Y": ["111","001","111","101","101"],              // width 3
+        "Z": ["11","10","11","01","11"],                   // width 2
+
+        // Digits (rows reversed)
+        "0": ["11","11","11","11","11"],                   // width 2 (symmetric solid)
+        "1": ["1","1","1","1","1"],                        // width 1 (symmetric)
+        "2": ["11","10","11","01","11"],                   // width 2
+        "3": ["11","01","11","01","11"],                   // width 2 (symmetric)
+        "4": ["01","01","01","11","11"],                   // width 2
+        "5": ["11","01","11","10","11"],                   // width 2
+        "6": ["11","11","11","10","11"],                   // width 2
+        "7": ["01","01","01","01","11"],                   // width 2
+        "8": ["11","11","01","11","11"],                   // width 2 (symmetric)
+        "9": ["11","01","11","11","11"],                   // width 2
+
+        // Punctuation / misc (rows reversed)
+        "!": ["1","0","1","1","1"],                        // width 1
+        "?": ["10","00","10","01","11"],                   // width 2
+        ".": ["1","0","0","0","0"],                        // width 1
+        "-": ["00","00","11","00","00"],                   // width 2 (symmetric)
+        " ": ["0","0","0","0","0"],                        // width 1 (blank)
+      };
+
+      let radiusSegments = 14;
+      let nSectors = 24;
 
       let centerX = canvas.width / 2;
       let centerY = canvas.height / 2;
@@ -396,7 +550,7 @@
       // Undo stack: each entry is { changes: [{r, t, prev}], label: string }
       let undoStack = [];
 
-      // Recent colors
+      // Recent colors (colors actually used on canvas)
       let recentColors = [];
 
       // --- Utility: color conversions ---
@@ -419,14 +573,13 @@
         } else {
           colorRgbLabel.textContent = "Invalid color";
         }
-        addRecentColor(hex);
       }
 
-      // --- Recent colors ---
+      // --- Recent colors (only from paint operations) ---
       function addRecentColor(hex) {
         if (!hex) return;
         hex = hex.toLowerCase();
-        // Move to front / dedupe
+        if (hex === OFF_COLOR) return;
         recentColors = recentColors.filter(c => c !== hex);
         recentColors.unshift(hex);
         if (recentColors.length > 3) {
@@ -466,7 +619,6 @@
         if (Number.isNaN(v)) v = 24;
         if (v < 4) v = 4;
         if (v > 144) v = 144;
-        // enforce even
         if (v % 2 !== 0) v += 1;
         if (v > 144) v = 144;
         return v;
@@ -506,7 +658,6 @@
         radiusSegments = newRadius;
         nSectors = newSectors;
 
-        // If no previous pixels, just init fresh
         if (!oldPixels || oldPixels.length === 0 || oldRadius === 0 || oldSectors === 0) {
           initPixels();
           drawGrid();
@@ -517,7 +668,6 @@
         for (let r = 0; r < newRadius; r++) {
           const row = [];
           for (let t = 0; t < newSectors; t++) {
-            // Map new indices to closest old indices (resampling)
             let oldR = Math.floor(r * oldRadius / newRadius);
             let oldT = Math.floor(t * oldSectors / newSectors);
 
@@ -533,7 +683,7 @@
         }
 
         pixels = newPixels;
-        undoStack = []; // geometry change resets undo (keeps logic simple)
+        undoStack = [];
         updateGridInfoLabel();
         pixelInfoSpan.textContent = "[resampled]";
         drawGrid();
@@ -643,6 +793,7 @@
 
         if (changes.length > 0) {
           recordAction(changes, paintMode);
+          addRecentColor(color);
         }
 
         pixelInfoSpan.textContent =
@@ -728,9 +879,179 @@
         }
         if (changes.length > 0) {
           recordAction(changes, "fillAll");
+          addRecentColor(color);
         }
         pixelInfoSpan.textContent = "[fill all]";
-        addRecentColor(color);
+        drawGrid();
+      }
+
+      // --- Pattern helpers ---
+      function getPatternColors() {
+        const colors = [];
+        patternColorInputs.forEach(input => {
+          if (!input) return;
+          const val = (input.value || "").trim();
+          if (val && /^#([0-9a-fA-F]{6})$/.test(val)) {
+            colors.push(val.toLowerCase());
+          }
+        });
+        const unique = [...new Set(colors)];
+        return unique;
+      }
+
+      function applyPatternToCanvas() {
+        const type = patternSelect.value;
+        const colors = getPatternColors();
+        if (!type) return;
+        if (colors.length < 2) {
+          alert("Please choose at least two pattern colors.");
+          return;
+        }
+
+        const nColors = colors.length;
+        const changes = [];
+
+        for (let r = 0; r < radiusSegments; r++) {
+          for (let t = 0; t < nSectors; t++) {
+            let newColor = pixels[r][t];
+
+            if (type === "rings") {
+              newColor = colors[r % nColors];
+            } else if (type === "stripes") {
+              newColor = colors[t % nColors];
+            } else if (type === "spiral") {
+              newColor = colors[(t + r) % nColors];
+            } else if (type === "radialWave") {
+              const thetaNorm = t / nSectors;
+              const wave = Math.sin(thetaNorm * 2 * Math.PI * 3 + r * 0.6);
+              const idx = Math.max(
+                0,
+                Math.min(
+                  nColors - 1,
+                  Math.floor(((wave + 1) / 2) * (nColors - 1) + 0.0001)
+                )
+              );
+              newColor = colors[idx];
+            } else if (type === "checker") {
+              newColor = colors[(r + t) % nColors];
+            } else if (type === "spokes") {
+              const spokeWidth = Math.max(1, Math.floor(nSectors / 16));
+              if (t % (spokeWidth * 2) < spokeWidth) {
+                newColor = colors[r % nColors];
+              } else {
+                newColor = OFF_COLOR;
+              }
+            } else if (type === "radialGradient") {
+              const frac = radiusSegments <= 1 ? 0 : r / (radiusSegments - 1);
+              const idx = Math.min(nColors - 1, Math.floor(frac * nColors));
+              newColor = colors[idx];
+            } else if (type === "angularGradient") {
+              const frac = t / nSectors;
+              const idx = Math.min(nColors - 1, Math.floor(frac * nColors));
+              newColor = colors[idx];
+            } else if (type === "outerRing") {
+              if (r === radiusSegments - 1) {
+                newColor = colors[t % nColors];
+              } else {
+                newColor = OFF_COLOR;
+              }
+            } else if (type === "innerGlow") {
+              const mid = Math.floor(radiusSegments / 3);
+              if (r <= mid) {
+                newColor = colors[r % nColors];
+              } else {
+                newColor = OFF_COLOR;
+              }
+            }
+
+            const prev = pixels[r][t];
+            if (prev !== newColor) {
+              pixels[r][t] = newColor;
+              changes.push({ r, t, prev });
+            }
+          }
+        }
+
+        if (changes.length > 0) {
+          recordAction(changes, "pattern:" + type);
+          colors.forEach(c => addRecentColor(c));
+        }
+
+        pixelInfoSpan.textContent = "[pattern: " + type + "]";
+        drawGrid();
+      }
+
+      // --- Text rendering with variable-width 3×5 bitmap font ---
+      function applyTextToCanvas() {
+        const raw = (textInput.value || "").toUpperCase();
+        const text = raw.slice(0, 16);
+        if (!text) {
+          alert("Enter some text first.");
+          return;
+        }
+
+        const color = textColorInput.value || "#ffffff";
+
+        const letters = [];
+        for (let ch of text) {
+          if (!FONT[ch]) ch = " ";
+          letters.push(ch);
+        }
+
+        const gap = 1;
+
+        // Compute total width in columns
+        let totalWidth = 0;
+        for (const ch of letters) {
+          const glyph = FONT[ch] || FONT[" "];
+          const glyphWidth = (glyph[0] || "").length;
+          totalWidth += glyphWidth;
+        }
+        totalWidth += gap * Math.max(0, letters.length - 1);
+
+        // Center horizontally
+        let startCol = 0;
+        if (totalWidth < nSectors) {
+          startCol = Math.floor((nSectors - totalWidth) / 2);
+        }
+
+        const topRing = Math.max(0, radiusSegments - FONT_HEIGHT);
+        const changes = [];
+
+        let col = startCol;
+        for (const ch of letters) {
+          const glyph = FONT[ch] || FONT[" "];
+          const glyphWidth = (glyph[0] || "").length;
+
+          for (let row = 0; row < FONT_HEIGHT; row++) {
+            const line = glyph[row] || "";
+            for (let x = 0; x < glyphWidth; x++) {
+              if (line[x] !== "1") continue;
+
+              const thetaIndex = col + x;
+              if (thetaIndex < 0 || thetaIndex >= nSectors) continue;
+
+              const rIndex = topRing + row;
+              if (rIndex < 0 || rIndex >= radiusSegments) continue;
+
+              const prev = pixels[rIndex][thetaIndex];
+              if (prev !== color) {
+                pixels[rIndex][thetaIndex] = color;
+                changes.push({ r: rIndex, t: thetaIndex, prev });
+              }
+            }
+          }
+
+          col += glyphWidth + gap;
+          if (col >= nSectors) break;
+        }
+
+        if (changes.length > 0) {
+          recordAction(changes, "text");
+          addRecentColor(color);
+        }
+
+        pixelInfoSpan.textContent = '[text: "' + text + '"]';
         drawGrid();
       }
 
@@ -762,9 +1083,6 @@
 
       // --- Export C for PIC24 ---
       function exportPatternC() {
-        // NOTE: radial order is REVERSED when exporting:
-        // pattern[theta][0] now corresponds to the OUTERMOST ring.
-
         const PAT_ANGLES_MAX = 72;
 
         let lines = [];
@@ -778,11 +1096,9 @@
         lines.push("");
         lines.push("const uint8_t pattern[PAT_ANGLES_MAX][PAT_RADIUS][3] = {");
 
-        // pattern[theta][radius][rgb] for theta in [0, used_angles)
         for (let theta = 0; theta < nSectors; theta++) {
           lines.push("  {  // theta " + theta);
           for (let r = 0; r < radiusSegments; r++) {
-            // Reverse radial index for export
             const srcR = radiusSegments - 1 - r;
             const hex = pixels[srcR][theta];
             const rgb = hexToRgb(hex) || { r: 0, g: 0, b: 0 };
@@ -855,7 +1171,10 @@
       exportCButton.addEventListener("click", exportPatternC);
       undoButton.addEventListener("click", undoLast);
 
-      // --- Pointer events for click + drag painting ---
+      applyPatternButton.addEventListener("click", applyPatternToCanvas);
+      applyTextButton.addEventListener("click", applyTextToCanvas);
+
+      // --- Pointer events ---
       canvas.addEventListener("pointerdown", function (evt) {
         evt.preventDefault();
         isPainting = true;

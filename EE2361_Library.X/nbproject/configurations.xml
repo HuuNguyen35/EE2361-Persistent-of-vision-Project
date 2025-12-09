@@ -10,6 +10,7 @@
       <itemPath>lcd_api_v2.h</itemPath>
       <itemPath>blommel_lab2b_asmLib_v1.h</itemPath>
       <itemPath>pattern.h</itemPath>
+      <itemPath>PersistenceOfVisionAPI.h</itemPath>
     </logicalFolder>
     <logicalFolder name="ExternalFiles"
                    displayName="Important Files"
@@ -26,14 +27,12 @@
                    projectFiles="true">
       <itemPath>LEDAPI.c</itemPath>
       <itemPath>MainFinal_V1.c</itemPath>
-      <itemPath>MainLEDTest_V1.c</itemPath>
-      <itemPath>MainMotorDriverTest_V1.c</itemPath>
-      <itemPath>MainSensorTest_V1.c</itemPath>
-      <itemPath>MotorDriverAPI.c</itemPath>
       <itemPath>SensorAPI.c</itemPath>
       <itemPath>lcd_api_v2.c</itemPath>
       <itemPath>blommel_lab2b_asmLib_v1.s</itemPath>
       <itemPath>pattern.c</itemPath>
+      <itemPath>PersistenceOfVisionAPI.c</itemPath>
+      <itemPath>MotorDriverAPI.c</itemPath>
     </logicalFolder>
   </logicalFolder>
   <projectmakefile>Makefile</projectmakefile>
