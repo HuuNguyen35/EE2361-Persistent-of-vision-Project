@@ -13,13 +13,14 @@ extern "C" {
 #endif
 
     void InitPersistenceOfVision();
-    void PersistenceOfVision_Loop();
-    void POV_Start(void);
-    void POV_Stop(void);
-    float POV_GetRPM(void);
+    void PersistenceOfVision_Task();
+    void POV_Start();
+    void POV_Stop();
+    float POV_GetRPM();
     void POV_SetStaticColor(uint8_t r, uint8_t g, uint8_t b);
-    void POV_ClearDisplay(void);
+    void POV_ClearDisplay();
     void POV_SetLcdUpdate(uint16_t newNum);
+    void POV_Stop_LED_updates();
 
 
 

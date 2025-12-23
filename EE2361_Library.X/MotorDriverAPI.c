@@ -17,14 +17,13 @@
 #define DIR_LAT    LATAbits.LATA1
 #define PWM_TRIS   TRISBbits.TRISB2
 
-void delay(int nDelay) {
+static void delay(int nDelay) {
     for (int i = 0; i < nDelay; ++i ) {
         oneMilliSecond();
     }
 }
 
-void pwm_init(void)
-{
+static void pwm_init(void){
     T2CON = 0; TMR2 = 0;
     PR2 = 399;
     T2CONbits.TCKPS = 0b00;
@@ -38,40 +37,55 @@ void pwm_init(void)
     PWM_TRIS = 0;
 }
 
-void pps_init(void)
-{
+static void pps_init(void){
     __builtin_write_OSCCONL(OSCCON & 0xBF);
     RPOR1bits.RP2R = 18;
     __builtin_write_OSCCONL(OSCCON | 0x40);
 }
 
-void pwm_set_duty(uint16_t duty)
-{
+static void pwm_set_duty(uint16_t duty){
     if (duty > PR2) duty = PR2;
     OC1RS = duty;
 }
 
-void motor_init(void)
-{
+void motor_init(void){
+    /*
+     Arguments: void
+Function: This function initializes both the peripherals and the motor driver 
+     * that is used within the motor driver code.
+Return: Void
+*/
     DIR_TRIS = 0; DIR_LAT = 0;
     pps_init();
     pwm_init();
 }
 
-void motor_set_direction(uint8_t dir)
-{
+void motor_set_direction(uint8_t dir){
+    /*
+     Arguments: dir
+Function: This function allows us to choose the direction that the motor 
+     * driver can spin. This is either a forward or backward direction
+     *  corresponding to either a value of 0 or 1.
+Return: Void
+
+     */
     DIR_LAT = (dir ? 1 : 0);
 }
 
-void motor_set_speed_percent(uint8_t speed)
-{
+void motor_set_speed_percent(uint8_t speed){
+    /*
+     Arguments: uint8_t speed
+Function: This function allows us to choose any percentage of the max rpm we 
+     * want to use on the motor driver. It then converts the percentage into a
+     *  usable duty cycle value.
+Return: Void
+*/
     if (speed > 100) speed = 100;
     uint16_t duty = (uint16_t)((speed * PR2) / 100);
     pwm_set_duty(duty);
 }
 
-//int main(void)
-//{
+//int main(void){
 //    motor_init();
 //
 //    while(1)

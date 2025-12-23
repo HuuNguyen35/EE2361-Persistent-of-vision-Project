@@ -37,8 +37,7 @@ static Pixel leds[NUM_LEDS];
 
 
 
-static inline void ws_send_pixel(uint8_t r, uint8_t g, uint8_t b)
-{//simple kinda useless wrapper to switch to GRB values
+static inline void ws_send_pixel(uint8_t r, uint8_t g, uint8_t b){//simple kinda useless wrapper to switch to GRB values
     ws_send_pixel_asm(g, r, b);  //GRB order
 }
 
@@ -46,15 +45,13 @@ static inline void ws_send_pixel(uint8_t r, uint8_t g, uint8_t b)
 
 
 //use after sending all LEDS their code
-static inline void ws_reset_latch(void)
-{
+static inline void ws_reset_latch(){
     LED_PIN_LAT = 0;
     __delay_us(80); //above 50 us
 }
 
 
-void ws_clear_all(void)
-{
+void ws_clear_all(){
     for (int i = 0; i < NUM_LEDS; ++i) {
         leds[i].r = 0;
         leds[i].g = 0;
@@ -62,8 +59,7 @@ void ws_clear_all(void)
     }
 }
 
-void ws_set_all(uint8_t r, uint8_t g, uint8_t b)
-{
+void ws_set_all(uint8_t r, uint8_t g, uint8_t b){
     for (int i = 0; i < NUM_LEDS; ++i) {
         leds[i].r = r;
         leds[i].g = g;
@@ -71,15 +67,13 @@ void ws_set_all(uint8_t r, uint8_t g, uint8_t b)
     }
 }
 
-void ws_set_pixel(int idx, uint8_t r, uint8_t g, uint8_t b)
-{
+void ws_set_pixel(int idx, uint8_t r, uint8_t g, uint8_t b){
     if (idx < 0 || idx >= NUM_LEDS) return;
     leds[idx].r = r;
     leds[idx].g = g;
     leds[idx].b = b;
 }
-void ws_flash_column(uint8_t theta_idx, uint16_t on_time_us)
-{
+void ws_flash_column(uint8_t theta_idx, uint16_t on_time_us){
     // Show pattern for this angle
     ws_show_column(theta_idx);
 
@@ -91,8 +85,7 @@ void ws_flash_column(uint8_t theta_idx, uint16_t on_time_us)
 }
 
 
-void ws_show_column(uint8_t theta_idx)
-{
+void ws_show_column(uint8_t theta_idx){
     if (theta_idx >= used_angles) {
         theta_idx = 0;
     }
@@ -164,8 +157,7 @@ void ws_show_column(uint8_t theta_idx)
 
 
 
-void ws_show(void)
-{
+void ws_show(){
     //nothing gonna fuck up my led timing
     __builtin_disi(0x3FFF);
 
@@ -182,8 +174,7 @@ void ws_show(void)
 
 
 
-void ws_init(void)
-{
+void ws_init(){
     LED_PIN_TRIS = 0;
     LED_PIN_LAT  = 0;
 

@@ -1,6 +1,5 @@
 #include <xc.h>
 #include <stdint.h>
-#include <stdbool.h>
 
 #define FCY 16000000UL  
 
@@ -9,7 +8,7 @@
 #define PULSES_PER_REV      2  //pulses per revolution (2 for 2 fan blades)
 
 //The "debounding" for the sensor
-#define DEBOUNCE_US      50000UL   // 5000 µs = 5 ms
+#define DEBOUNCE_US      50000UL   // 5000 us = 5 ms
 #define DEBOUNCE_TICKS  ((uint32_t)((DEBOUNCE_US * (FCY / 1000000UL)) / T2_PRESCALE))
 
 

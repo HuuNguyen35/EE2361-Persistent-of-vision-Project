@@ -13,7 +13,7 @@
 #include "PersistenceOfVisionAPI.h"
 
 
-#define LED_ON_US      500
+#define led_time_on_us      500
 #define DEBOUNCE_MS    20
 
 #define TEST_LED_TRIS   TRISBbits.TRISB12
@@ -39,26 +39,22 @@ static uint16_t loops_per_lcd_update = 10000; //10,000 = not fast, good LED
 
 
 
-static void initTestLed(void)
-{
+static void initTestLed(){
     TEST_LED_AN  = 1;
     TEST_LED_TRIS = 0; 
     TEST_LED_LAT  = 0;
 }
 
-static void testLed_toggle(void)
-{
+static void testLed_toggle(){
     testLedState ^= 1;
     TEST_LED_LAT = testLedState;
 }
 
-static void initButton(void)
-{
+static void initButton(){
     BTN_TRIS = 1;
 }
 
-static uint8_t button_pressed_edge(void)
-{
+static uint8_t button_pressed_edge(){
     static uint8_t prev_state = 1; 
     uint8_t curr = BTN_PORT;
 
@@ -85,8 +81,7 @@ static uint8_t button_pressed_edge(void)
 }
 
 
-static void pov_t1_init(void)
-{
+static void pov_t1_init(){
     T1CON = 0;
     TMR1  = 0;
 
@@ -95,9 +90,17 @@ static void pov_t1_init(void)
     T1CONbits.TON   = 1; 
 }
 
-// ===================== PUBLIC API =====================
-void POV_Start(void)
-{
+// ============PUBLIC API ===========================
+void POV_Start(){
+    /*
+     Arguments: Void
+Function: Makes the systems start running. Separate from initialization.
+     * This flips state variables to tell the PersistenceOfVisionTask to start 
+     * the infrared sensor sampling for the RPM timing. This also allows for 
+     * the LEDs to display. Used to start the system.
+Return: Void
+
+     */
     if (!sensing_enabled) {
         sensor_rpm_init();
         sensing_enabled = 1;
@@ -107,8 +110,14 @@ void POV_Start(void)
 }
 
 
-void POV_Stop(void)
-{
+void POV_Stop(){
+    /*
+     * Arguments: Void
+Function: Stops the infrared sensor from updating the RPM value. 
+     * Also prevents the LEDs from displaying anything. Used to stop the system.
+Return: Void
+
+     */
     if (sensing_enabled) {
         sensor_rpm_shutdown();
         sensing_enabled = 0;
@@ -122,30 +131,81 @@ void POV_Stop(void)
     ws_show();
 }
 
-float POV_GetRPM(void)
-{
+void POV_Stop_LED_updates(){
+    /*
+     Arguments: Void
+Function: When calling the PersistenceOfVision_Task(), it will no longer flash
+     *  the LEDs with the latest theta value. The purpose is to allow for the
+     *  LEDs to be controlled by the POV_SetStaticColor() function while the
+     *  sensor is still able to calculate the RPM. To re-enable the LED 
+     *  updates, call POV_Start().
+Return: Void
+*/
+    pov_enabled = 0;
+    pov_started = 0;
+    step_ticks  = 0;
+
+    ws_clear_all();
+    ws_show();
+}
+
+float POV_GetRPM(){
+    /*
+     Arguments: Void
+Function: This function allows us to easily access the latest and most recent
+     *  rpm from the sensor.
+Return: float = the average RPM gathered from the sensor?s circular buffer.
+
+     */
     return g_last_rpm;
 }
 
-void POV_SetStaticColor(uint8_t r, uint8_t g, uint8_t b)
-{
+void POV_SetStaticColor(uint8_t r, uint8_t g, uint8_t b){
+    /*
+     Arguments: uint8_t r, uint8_t g, uint8_t b
+Function: This function writes every accessible LED into the same color and
+     * then writes that color value into ws_show() so that the LEDs can update. 
+     * This function is useful for test cases.
+Return: Void
+*/
     ws_set_all(r, g, b);
     ws_show();
 }
 
-void POV_ClearDisplay(void)
-{
+void POV_ClearDisplay(){
+    /*
+     Arguments: Void
+Function: This function clears the color of every accessible LED. It then sends 
+     * that data to ws_show() so the LEDs can turn off. This function is useful
+     *  for test case.
+Return: Void
+*/
     ws_clear_all();
     ws_show();
 }
 
 void POV_SetLcdUpdate(uint16_t newNum){
+    /*
+     Arguments: uint16_t newNum
+Function: This function allows us to write any number of loops that it takes
+     *  for the LCD display to update. This is useful as too many loops can
+     *  cause the LCD display to update slowly and unreliably and too little 
+     * loops can cause the LCD display to be more ?janky?.
+Return: Void
+*/
     loops_per_lcd_update = newNum;
 }
 
 
-void InitPersistenceOfVision(void)
-{
+void InitPersistenceOfVision(){
+    /*
+     Arguments: Void
+Function: This initializes all components necessary for the POV module. 
+     * It runs through each of the required software init() functions and 
+     * initializes all persistent variables to their respective values. 
+Return: Void
+
+     */
     pov_t1_init();
     
     lcd_init(); 
@@ -164,8 +224,27 @@ void InitPersistenceOfVision(void)
 }
 
 //while(1) do this function
-void PersistenceOfVision_Task(void)
-{
+void PersistenceOfVision_Task(){
+    /*
+     Arguments: Void
+Function: This is the core logic that should be called infinitely. 
+     * This is the main driver function for our module. It controls when to
+     *  call each of the sub-functions, and keeps track and updates the state 
+     * variables as needed. It first creates local variables for each call that
+     *  represent the LCD?s display and the current state of the system. 
+     * It checks if the user has pressed the ?start? button. If unpressed, the 
+     * only logic the function will perform is displaying ?PRESS BTN? ?TO START?
+     *  on the LCD display. If the button has been pressed, the following logic
+     *  will be performed. The average RPM from the sensor?s circular buffer is
+     *  gathered. We use that value to convert into Timer 1 ticks per LED 
+     * state, and calculate the time in between each LED flash. Then the RPM
+     *  information is sent to the LCD to be displayed. Then it checks if 
+     * it?s time for an LED flash. If it?s time, the LEDs are blinked on for 
+     * a certain amount of time, then turned off. The theta value is 
+     * incremented and we schedule the time for the next LED flash based on 
+     * the most recent amount of ticks per flash.
+Return: Void
+*/
     char top_buf[11];
     char bot_buf[11];
 
@@ -225,7 +304,7 @@ void PersistenceOfVision_Task(void)
     }
 
     //less frequently we gotta update the LCD to whatever the RPM is
-    if ((step_counter++ % loops_per_lcd_update) == 0) {
+    if ((step_counter++ % loops_per_lcd_update) == 0 ) {
         //top
         lcd_setCursor(0, 0);
         snprintf(
@@ -258,7 +337,7 @@ void PersistenceOfVision_Task(void)
     
 
     //LED logic
-    if (buf_ok && step_us_f > 0.0f) {
+    if (pov_enabled && buf_ok && step_us_f > 0.0f) {
         uint16_t now = TMR1;
 
         if (!pov_started) {
@@ -269,7 +348,7 @@ void PersistenceOfVision_Task(void)
         uint16_t elapsed = (uint16_t)(now - next_t1);
 
         if (elapsed >= step_ticks) {
-            ws_flash_column(theta, LED_ON_US); 
+            ws_flash_column(theta, led_time_on_us); 
 
             theta++;
             if (theta >= used_angles) {
